@@ -1,0 +1,95 @@
+***Configure VPN on PALO ALTO***
+1/Create IKE Crypto
+network ---> network profile ---> IKE Crypto --->Add(Name=connect to FG-FW Site,DH Group --->add=group 5,
+Authentication=( add --->sha1)
+encryption=( add --->des)--->OK
+2:Create IPSec Crypto
+network ---> network profile ---> IPSec Crypto --->Add(Name=connect to FG-FW Site,IPSec Protocol=ESP ,DH Group no-pfs
+encryption=( add --->des)
+Authentication=( add --->sha1)--->OK--->commit--->ok--->close
+3:create IKE Gateway
+network ---> network profile --->IKE Gateway--->Add---> under general--->(Name=Peering-Over-To-FG-FW,version=IKEV2,Address Type=IPV4,Interface=ethernet1/4,local address=172.25.71.33/24,peer address=23.1.2.31
+Pre-Shared Key=*Libya4ever*, confirm Pre-Shared Key=*Libya4ever*
+local identification=IP Address 172.25.71.33/24(PA-FW)
+Peer identification=IP Address 23.1.2.31(FG-FW)
+under Advanced tab ---> IKE2--->IKE Crypto Profile=(connect-to-FG-FW-Site)--->OK--->commit--->ok--->close
+4=create Tunnel On interface
+network----> interfaces---->Tunnel---->Add(Interface name=tunnel,1, comment =Tunnel to FG-FW site
+under config (Virtual Router=default, security zone=click name=Outside_Zone---->ok)---->ok
+5:***create IPSec Tunnel***
+on PA-FW1 to connect with FG site:
+network---->IPSec Tunnels---->Add---->(Name=Tunnel-To-FG-FW, Tunnel interface=Tunnel1,Type=Auto key
+Address Type=IPV4
+IKE Gateway=Peering-Over-To-FG-FW
+IPSec Crypto Profile=select (connect to FG-FW Site)
+check show Advanced Options
+under Proxy IDs tab ---->Add---->(Proxy ID= Interesting_traffic_LAN-FG, Local=99.2.0.0/16,Remote=10.2.0.0/16)---->OK---->OK---->commit---->commit---->close
+
+6:**** Routing ****
+create Virtual Routing to connect between two firewall and send the traffic over tunnel interfaces. by creating static routing on both side (PA-FW1&FG-FW2)
+on PA-FW1:
+1:Network ----> Virtual Routers ----> default ---->Static Routes ---->ADD---->(Name=Site-to-Network10.2-FG ,Destination=10.2.0.0/16, interface =Tunnel1,Next Hop=none---->OK)---->OK---->commit---->commit---->close
+
+7:****Security rules and policies for VPN****
+on PA-FW1 connect with FG site:
+1.create rules allow the client(99.1.0.0/24) from inside to connect via S2S-VPN rules on other site (10.2.0.0/24).
+Policies---->security---->add ((Name=inside-To-VPNout,description=basic role to allow  client on site1 to connect with client on Site2 using VPN ,
+select Source tab ---->click add ---->select inside-zone,source address=any
+select Destination Tab(Destination Zone---->add(select=Outside ), Destination Address=any)
+select Appliction Tab=any, 
+select service/URL Category -----> application default)
+select Actions TAB=(Action Setting(Action=allow),
+---->ok---->move to the Top of Secuirty policies
+
+1.create rules allow the client(10.2.0.0/24) from outside to connect via S2S-VPN rules on inside (99.1.0.0/24).
+Policies---->security---->add ((Name=Outside-To-VPNinside,description=basic role to allow  client on site1 to connect with client on Site2 using VPN ,
+select Source tab ---->click add ---->select Outside-zone,source address=any
+select Destination Tab(Destination Zone---->add(select=inside-zone ), Destination Address=any)
+select Appliction Tab=any, 
+select service/URL Category -----> application default)
+select Actions TAB=(Action Setting(Action=allow),
+---->ok---->move to the Top of Secuirty policies---->commit---->commit---->close
+
+
+***Configure VPN on Fortigate Firewall***
+VPN---->VPN Wizard ---->(name=connect with PA-FW-VPN, Template Type=custom ---->next ---->
+under network(IP Version=IPV4,Remote Gateway=Static IP Address, IP Address=172.25.71.33, interface=Port4
+under Authentications= method=Pre-sharedKey, Pre-sharedKey=*Libya4ever*,IKE(Version=2)
+under Phase1 Proposal
+Encryption=DES , Authentication=SHA1
+Diffe-Helliman Groups=14,5
+under Phase2 selectors ----> 
+New Phase 2
+Nme= PA-fw
+Local Address= subnet=10.2.0.0/16, Remote Address= subnet=99.1.0.0/16
+click Advanced 
+Phase 2 Proposel  ---->  delete all tabs, 
+Encryption=DES , Authentication=SHA1
+uncheck enable Perfect Forward Secrecy(PFS)
+---->OK
+
+2:Create Static Route
+network ---->Static Routes---->Destination=Subnet=99.1.0.0/16, interface=Tunnel interfcae ---->OK
+
+3:create Policy to allow from inside and out side connect together
+1:from outside to inside LAN on FG-FW
+Policy &Objects---->IPv4 Policy ----> create New ---->
+Name=from OUTSIDE-VPN-TO-INside
+incoming interface=PA-FGT
+outgoing interface=port2(INSIDE)
+source=ALL
+destination=all
+service=All
+action=Accept--->OK
+
+2:from inside on FG-FW LAN to Outside to PA-FW LAN
+Policy &Objects---->IPv4 Policy ----> create New ---->
+Name=from inSIDE-VPN-TO-outside
+incoming interface=port2(INSIDE)
+outgoing interface=PA-FGT (Tunnel)
+source=ALL
+destination=all
+service=All
+action=Accept--->OK
+
+
