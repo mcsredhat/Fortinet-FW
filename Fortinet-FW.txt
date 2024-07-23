@@ -1,0 +1,587 @@
+configuration and Adding LAB NAT/PAT 
+########################################
+conf t 
+ni ip domain-lookup
+! spann mode rapid
+no service time debug
+no service time log
+banner exec X
+Exec banner
+X
+banner incoming X
+Incoming banner 
+X
+banner login 
+login banner
+X
+! cdp timer 10
+!cdp holdtime 20
+line con 0
+exec-time 60
+logging sync
+exec-time 60
+privi level 15
+line vty 0 15
+no login
+exec-time 60
+logging sync
+exec-time 60
+privi level 15
+logging sync
+trans input all
+exit
+no service time debug
+no service time log
+end
+no service time debug
+no service time log
+end
+wr
+
+int gig 0/0 
+no shutdown
+ip address dhcp
+exit
+int gig 0/1 
+no shutdown
+ip address 23.1.2.1 255.255.255.0 
+exit
+access-list 1 permit 23.0.0.0 0.255.255.255 
+ip nat inside source list 1 interface gig 0/0 overload
+int gig 0/0 
+ip nat outside
+int gig 0/1
+ip nat inside
+exit
+sh ip route
+sh ip int bri
+ping 8.8.8.8
+ping 8.8.8.8 source 23.1.2.1
+sh ip nat translations
+wr 
+########################################################
+initial bootsrtap configuration for fortigate firewalls (FW1=71,FW2=72,FW3=73,FW4=74)
+#############################################
+
+config system interface 
+show
+edit port1
+set mode static
+set ip 192.168.1.7* 255.255.255.0
+set allowaccess ping https http ssh fgfm
+set alias mgmt
+show 
+end
+############################################################"
+in this senario will let the FW1 to connect to internet.
+
+change the idel time 
+system ----> setting ---->under    ---->idle timeout=60---->apply
+
+1:configure interfaces
+network ---->interfaces----> d-click on Port4, Alias=Toward-to-internet , under Address(Address Mode=Manual, IP/NetMask=23.1.2.71/24, under administration access IPV4 check PING)----> OK
+network ---->interfaces----> d-click on Port2, Alias=Toward-to-LAN-10.2 , under Address(Address Mode=Manual, IP/NetMask=10.123.0.71/24, under administration access IPV4 check PING)----> OK
+will add static router to FW1 
+1:adding the static route 
+network ----> static route ----> create new ----> (Destination =subnet,10.0.0.0/24,Gateway=10.123.0.72, interface=Port2)----> OK----> admin ---> system ---->reboot ----> initial configuration ---->OK
+will add static router to FW1 to connect with R1 via GIG 0/1=23.1.2.1/24
+1:adding the static route 
+network ----> static route ----> create new ----> (Destination =subnet,0.0.0.0/0.0.0.0 ,Gateway=23.1.2.1, interface=Port4)----> OK
+***Verfying and testing can ping 8.8.8.8***
+click on >-(cli) ----> execute ping 8.8.8.8
+execute traceroute 8.8.8.8
+***configure firewall policy to accept any traffic***
+##############################################################
+in this senario will configuration the Firewalls (FW2,FW3,FW4) by adding the interfaces and static routers .and allow the (FW2,FW3,FW4) to connect to internet (ping 8.8.8.8) by adding firewall policy to FW1.
+ON FW2=
+1:configure interfaces
+network ---->interfaces----> d-click on Port4, Alias=Toward-to-FW1 , under Address(Address Mode=Manual, IP/NetMask=10.123.0.72/24, under administration access IPV4 check PING)----> OK
+network ---->interfaces----> d-click on Port2, Alias=Toward-to-LAN-10.2 , under Address(Address Mode=Manual, IP/NetMask=10.2.0.72/24, under administration access IPV4 check PING)----> OK
+will add static router to FW2 to connect with FW1 via 10.123.0.71/24
+1:adding the static route 
+network ----> static route ----> create new ----> (Destination =subnet,0.0.0.0/0.0.0.0 ,Gateway=10.123.0.71, interface=Port4)----> OK----> admin ---> system ---->reboot ----> initial configuration ---->OK
+
+ON FW3=
+1:configure interfaces
+network ---->interfaces----> d-click on Port4, Alias=Toward-to-FW1 , under Address(Address Mode=Manual, IP/NetMask=10.123.0.73/24, under administration access IPV4 check PING)----> OK
+network ---->interfaces----> d-click on Port2, Alias=Toward-to-LAN-10.33 , under Address(Address Mode=Manual, IP/NetMask=10.3.0.73/24, under administration access IPV4 check PING)----> OK
+will add static router to FW3 to connect with FW1 via 10.123.0.71/24
+1:adding the static route 
+network ----> static route ----> create new ----> (Destination =subnet,0.0.0.0/0.0.0.0 ,Gateway=10.123.0.71, interface=Port4)----> OK----> admin ---> system ---->reboot ----> initial configuration ---->OK
+
+ON FW4=
+1:configure interfaces
+network ---->interfaces----> d-click on Port4, Alias=Toward-to-Internet , under Address(Address Mode=Manual, IP/NetMask=23.1.2.74/24, under administration access IPV4 check PING)----> OK
+network ---->interfaces----> d-click on Port2, Alias=Toward-to-LAN-10.4 , under Address(Address Mode=Manual, IP/NetMask=10.4.0.74/24, under administration access IPV4 check PING)----> OK
+will add static router to FW4 to connect with R1 
+1:adding the static route 
+network ----> static route ----> create new ----> (Destination =subnet,0.0.0.0/0.0.0.0 ,Gateway=23.1.2.1, interface=Port4)----> OK----> admin ---> system ---->reboot----> initial configuration ---->OK
+
+****** configure secuirty policy *****
+in this scenario allow the user to go out side internet , where will add it on FW1,FW2,FW3, and will allow user from outside to ping the clients inside network LAN(10.2,10.3,10.123)
+1: allow from inside network to go out side (internet)
+policy &objects ---> firewall policy --->create new --->( 
+Name=allow-from-inside-to-outside
+incoming interface=port2
+outgoing interface=port4
+source=all
+destination=all
+service=all
+action=ALLOW
+log Allowed traffic=All Sessions--->OK
+2:will allow user from outside to ping the clients inside network LAN(10.2,10.3,10.123), where will be add it on FW1,FW2,FW3.
+policy &objects ---> firewall policy --->create new --->( 
+Name=allow-from-Outside-to-inside
+incoming interface=port4
+outgoing interface=port2
+source=all
+destination=all
+service=all
+action=ALLOW
+log Allowed traffic=All Sessions--->OK
+
+***confirm the configuration for default route on  (FW2,FW3,FW4)****
+1:network ---->click on routing ---->
+***Verfying and testing can ping 8.8.8.8***
+ ping 8.8.8.8
+execute traceroute 8.8.8.8
+2: add client on network 23.1.2.0/24
+ip addr add 23.1.2.100/24 dev eth0 || true
+ip route add default via 23.1.2.1 || true
+ ping 10.2.0.222
+####################################################
+Routing firewal
+1:display the Directly connected network based on the interfaces via FW.
+Dashboard ----> Ntework ----> Routing ----> 
+cli---->get router info routing-table connected
+cli---->get router info routing-table static
+cli---->get router info routing-table all
+cli---->get router info routing-table database
+
+2:Static route informations.
+making decision based on information to forward packet for example
+if would like to forward information to specific network = 10.2.0.0/24 will use (default route(0.0.0.0/0 ,next hop).
+adding the static route 
+network ----> static route ----> create new ----> (Destination =subnet,10.2.0.0/24 ,Gateway=10.123.0.72, interface=Port2)----> OK----> admin ---> system ---->reboot----> initial configuration ---->OK
+cli---->get router info routing-table details 10.2.0.50
+3.RIP 
+will include any subnet network on the our network , by allowing the interface for example on FW1 will allow RIP to reach any 10.0.0.0/8 ,and 172.16.0.0/16, and 23.1.2.0/24,and ON FW2 will allow only 10.0.0.0/8
+ON FW1=
+network ---->RIP ---->( version =2, Network---->IP/Netmask=10.0.0.0/8---->ADD---->IP/Netmask=172.16.0.0/16---->Apply
+****confirmation the Creation of Routing RIP*** 
+Dashboard ----> Ntework ----> Routing ---->show 
+cli---->get router info routing-table database 
+cli---->get router info routing-table all
+cli---->get router info routing-table database
+***note** if would like to use RIP route and you have static route with Same network , must be delete the static route , because administartion Distance number is 10 for static , but for RIP is 120, the routing will automaticaaly used the lower number.
+ON FW2=
+network ---->RIP ---->( version =2, Network---->IP/Netmask=10.0.0.0/8---->Apply
+****confirmation the Creation of Routing RIP*** 
+Dashboard ----> Ntework ----> Routing ----> 
+cli---->get router info routing-table all
+cli---->get router info routing-table database
+
+4.OSPF Routing Table
+it is depend on Routing Domain for OSPF.where the different area will used link state router to forward the informaion and caculate the best path to forward the packets, and Area Border Route to connect bettween different area like area 0 & 1.
+the secnario of configuration OSPF on FW(1,2,&3), where on FW1 the area =0.0.0.0/0.0.0.0 , and networks=10.123.0.0/16 on port 2, and Network 172.16.0.0/16 on port3,where on FW2 the area =0.0.0.0/0.0.0.0 , and networks=10.0.0.0/8 on port 2, and port4,
+where on FW3 the area =0.0.0.0/0.0.0.0 , and networks=10.0.0.0/8 on port 2, and on port4,
+
+ON FW1=
+network ---->OSPF ---->(Router ID=1.1.1.1 , 
+Areas ----> create new ---->Area ID=0.0.0.0---->OK, 
+Networks ----> create new ----> Area=0.0.0.0, IP/Netmask=10.123.0.0/16---->OK
+         ----> create new ----> Area=0.0.0.0, IP/Netmask=172.0.0.0/8---->OK
+          ----> create new ----> Area=0.0.0.0, IP/Netmask=23.1.0.0/16---->OK
+---->Apply
+****confirmation the Creation of Routing OSPF*** get
+Dashboard ----> Ntework ----> Routing ----> dispaly 10.123.0.0/16 OSPF, 172.0.0.0/8 OSPF
+cli---->get router info routing-table all
+cli---->get router info routing-table database
+cli---->get router ospf
+
+ON FW2=
+network ---->OSPF ---->(Router ID=2.2.2.2 , 
+Areas ----> create new ---->Area ID=0.0.0.0---->OK, 
+Networks ----> create new ----> Area=0.0.0.0, IP/Netmask=10.0.0.0/8---->OK
+---->Apply
+ ****confirmation the Creation of Routing OSPF*** 
+Dashboard ----> Ntework ----> Routing ----> dispaly 10.0.0.0/8 OSPF
+cli---->get router info routing-table all
+cli---->get router info routing-table database
+cli---->get router ospf
+
+ON FW3=
+network ---->OSPF ---->(Router ID=3.3.3.3 , 
+Areas ----> create new ---->Area ID=0.0.0.0---->OK, 
+Networks ----> create new ----> Area=0.0.0.0, IP/Netmask=10.0.0.0/8---->OK
+---->Apply
+ ****confirmation the Creation of Routing OSPF*** 
+Dashboard ----> Ntework ----> Routing ----> dispaly 10.0.0.0/8 OSPF
+cli---->get router info routing-table all
+cli---->get router info routing-table database
+cli---->get router ospf
+
+5:BGP( borader gateway protcols)
+there are two types of Neighbours on BGP (Ineternal BGP( in the same area, Administartion distance=200) ,External BGP (in different area , Administartion distance=20, where the two router connect together and exchange the informations).  
+in our scenario will configure BGP between FW1 and FW4 , where the FW1 is 123 , and FW4 is 456 is autonomise systems and network will advertise is 10.4.0.0/24 from FW4 to FW1.
+
+***confirm the connectivity between FW1&FW4****
+ON FW1
+cli ---> execute ping 23.1.2.74
+ON FW1=configuration BGP 
+network ---->BGP ---->(Local AS=123, Router ID=1.1.1.1
+Neighbor ----> Create New ---->IP=23.1.2.74, Remotes AS=456
+Networks  ----> (IP/Netmask=10.4.0.0/24)
+IPV4 Filtering check Capability:graceful restart, Capaility:Route refersh ---->OK---->Apply
+
+****confirmation the Creation of Routing BGP*** 
+Dashboard ----> Ntework ---->Click on Routing ----> will display the BGP have route with 10.4.0.0/24 Network
+cli---->get router info bgp network
+cli---->get router info routing-table bgp
+cli---->get router info routing-table all
+cli---->get router info routing-table database
+
+ON FW4
+cli ---> execute ping 23.1.2.71
+ON FW1=configuration BGP 
+network ---->BGP ---->(Local AS=456, Router ID=4.4.4.4
+Neighbor ----> Create New ---->IP=23.1.2.71, Remotes AS=123
+IPV4 Filtering check Capability:graceful restart, Capaility:Route refersh ---->OK---->Apply
+
+****confirmation the Creation of Routing BGP*** 
+Dashboard ----> Ntework ----> Click on Routing ----> dispaly 
+cli---->get router info bgp network
+cli---->get router info routing-table bgp
+cli---->get router info routing-table all
+cli---->get router info routing-table database
+###########################################################
+configuring DHCP Server,Reservation IP address, and DHCP Relay , 
+###########################################################
+in this scenario will configure the following
+1: FW1 act as DHCP server on port2 , where the DHCP Scope will be 10.123.0.151-160,and the GatWay will be IP address for port2=10.123.0.71/24, DNS=8.8.8.8
+2:reserve IP Address=10.123.0.161 with MAC address for client .
+3:configure DHCP Realy on specific ports for example on Network 10.2.0.0/24 , will enable DHCP Relay on port 2, and the DHCP server has different scopes for instance (10.2.0.0/24,10.3.0.0/24,10.4.0.0/24), and Gatways(10.2.0.72/24,10.3.0.73/24,10.4.0.74/24) where the DHCP Server will be on Windows server or Linux server.
+
+1:configuration FW1 acting as DHCP Server
+Network ----> interfaces ----> click on Port2 ---->enable DHCP Server ----> ( DHCP Status=enable, Address range=10.123.0.151-10.123.0.160, Netmask=255.255.255.0, Default Gateway=Same as interface IP, DNS server=Specify ----> click + =8.8.8.8, lease time=68000----> OK
+**veryfing DHCP Server on client***
+connect VPC client with network 10.123.0.0/24
+ip dhcp
+ping 8.8.8.8
+Dashboard ----> Ntework ----> Click on DHCP
+
+2.Reserve IP Address for client with MAC address.
+recongize mac address on VPC-Client 
+Dashboard ----> Ntework ----> Click on DHCP ----> right click on Mac Address ----> create DHCP Reservation ---->( MAC Address=*****, IP=10.123.0.161, Address Name=Demo PC)---->OK---->right click on client ---->revoke it---->refresh
+**veryfing DHCP Server on client***
+connect VPC client with network 10.123.0.0/24
+ifconfig or ip a
+ping 8.8.8.8
+Dashboard ----> Ntework ----> Click on DHCP
+
+3.Enable DHCP Relay on port 2 For FW2.
+CLI---->execute ping 10.123.0.100
+Network ----> interfaces ----> click on Port2 ---->enable DHCP Server ---->Advance ---->Mode=Relay, Type=Regular
+DHCP Server IP=10.123.0.100 ---->OK
+**veryfing DHCP Server on client***
+connect VPC client with network 10.2.0.0/24
+ifconfig or ip a
+ping 10.2.0.72
+ping 8.8.8.8 ### not working , u need to add firewall policy####
+policy &objects ---> firewall policy --->create new --->( 
+Name=allow-from-inside-to-outside
+incoming interface=port2
+outgoing interface=port4
+source=all
+destination=all
+service=all
+action=ALLOW
+disable NAT
+log Allowed traffic=All Sessions--->OK
+ping 8.8.8.8
+#########################################################
+Source PAT/NAT
+in this scenario will configure the following 
+1:configure the PAT, where any networks (10.0.0.0/24) from inside using port 2 are going to outside using port 4 ,will use the specific Port to IP Translation. 
+2.allow user to access to specific IP Address on DMZ Zone to connect with Web Server from out side .
+
+the solution , there are two option to configure PAT,the first method using Role by role in secuirty policy, and the second method is using Centralize SNAT.
+***the first method using Role by role in secuirty policy*** 
+ON FW1:
+policy &objects ---> firewall policy --->create new --->
+Name=allow-from-inside-to-outside
+incoming interface=port2
+outgoing interface=port4
+source=click + ----> create ----> address ---->  --->( Name=10 Anything ,color red, Type=subnet,IP:NetMask=10.0.0.0/8 --->OK), drag it at source
+destination=all
+service=all
+action=ALLOW
+under Firewall/Network Options
+NAT=enable, IP Pool Configuration=Use Dynamic IP Pool--->+ --->create( Nmae=Pool for PAT Outside, Type=OverLoad,
+External Ip Addresss /rang = 23.1.2.208-23.1.2.209  --->OK) ---->drag at under IP Pool Configuration
+log Allowed traffic=All Sessions--->OK) 
+***veryfiying the configuration ***
+add two client on 10.123.0.0/24 network
+ping 8.8.8.8 from client 1&2,3
+ping google.com on Client1,facebook.com on Client2,fortinet.com on on Client3
+**open the firewall FW1**
+cli---> get system session list ( will find there are two ips have same PAT(ip-address)
+
+****second method using Central SNAT***
+ON FW1:
+policy &objects ---> firewall policy --->click on Name=allow-from-inside-to-outside
+NAT=enable,  IP Pool Configuration=Use Outgoing Interface Address
+log Allowed traffic=All Sessions--->OK)
+**to enable SNAT**
+system ---> settings --->under View Settings --->Enable Central SNAT ---> Apply
+** verifying enabling Central SNAT***
+Policy & Objects --->Central SNAT ---> Create New --->(
+under New Policy Tab
+incoming interface =port2, Outgoing Interface=Port4,Source Address= 10 anything, Destination Address=All
+under NAT Tab
+NAT=ENABLE
+IP Pool Configuration= Use Dynamic IP Pool ---> click + --->click edit Pool for PAT on Outside---> External Ip Address / range =23.1.2.111-23.1.2.112 --->ok) select it
+protocol=Any--->OK
+***veryfing the configuration Central SNAT***
+ping 8.8.8.8 from client 1&2,3
+ping google.com on Client1,facebook.com on Client2,fortinet.com on on Client3
+**open the firewall FW1**
+cli---> diagnose system session clear 
+cli---> get system session list( will find there are two ips have same PAT(ip-address)
+
+2.allow user from Out side to access to specific IP  Address on DMZ Zone to connect with Web Server.
+where The DNAT IP =23.1.2.222 to go directly to WebServer IP=172.16.1.100 on DMZ Zone.
+the solution , ,the first method using Role by role in secuirty policy and disable SNAT, and the second method is using Centralize DNAT.
+***configure DNAT***
+***disable Central SNAT**
+system ---> settings --->under View Settings --->Disable Central SNAT ---> Apply
+1:** will configure Virtual IP ***
+Policy & Objects ----> Virtual IP---> 
+under New Virtual IP
+VIP Type =IPV4
+Name=DMZ Web server
+Network (Interface=any, Type= Static NAT, External IP Address/Range=23.1.2.222, Map to IPv4 address/Range=172.16.1.100 ----> ok
+
+2:**create Policy &Objetcs to allow connect with Web server From Outside***
+policy &objects ---> firewall policy --->create new --->
+Name=Web Server Traffic
+incoming interface=port4
+outgoing interface=port3
+source=all
+destination=DMZ Web Server
+service=all
+action=ALLOW
+under Firewall/Network Options
+NAT=Disable
+log Allowed traffic=All Sessions--->OK) 
+3:***veryfiying the configuration ***
+add client on 23.1.2.0/24 network
+ip addr add 23.1.2.190/24 dev eth0 || true
+ip route add default via 23.1.2.1 || true
+ping 8.8.8.8 from client and  23.1.2.190 
+open the browser and type  23.1.2.222 to access to web server
+cli---> get system session list
+
+2***the second method is using configuring Central DNAT.****
+1:policy &objects ---> firewall policy --->click on Name=allow-from-inside-to-outside
+NAT=enable,  IP Pool Configuration=Use Outgoing Interface Address
+log Allowed traffic=All Sessions--->OK)
+2: delete the secuirty policy 
+policy &objects ---> firewall policy --->click Web server Traffic --->delete--->OK
+3:enable DNAT 
+system ---> settings --->under View Settings --->enable Central SNAT ---> Apply
+4:**create Policy &Objetcs to allow connect with Web server From Outside***
+policy &objects ---> firewall policy --->create new --->
+Name=Allow DMZ Accessse
+incoming interface=port4
+outgoing interface=port3
+source=all
+destination=click + ---> create ---> address --->( Name=Real Server DMZ Address, Type=Subnet , IP/Subnet=172.16.1.100/32 --->OK)---> drag it in destination
+service=all
+action=ALLOW
+under Firewall/Network Options
+log Allowed traffic=All Sessions--->OK)
+
+3:***veryfiying the configuration ***
+add client on 23.1.2.0/24 network
+ip addr add 23.1.2.190/24 dev eth0 || true
+ip route add default via 23.1.2.1 || true
+ping 8.8.8.8 from client and  23.1.2.222 
+open the browser and type  23.1.2.222 to access to web server
+cli---> diagnose system session clear 
+cli---> get system session list 
+
+###################################################
+Trunking VLANS.
+in this csenario will configure VALN TRUNKING , where will create VLANs for the following netowrks, , and will create VLAN Trunking under port 5, and the FW connect with switch.and the switch has the following netowrks
+network      VALN
+10.2.0.0--->   2
+10.3.0.0--->   3
+10.4.0.0--->   4
+23.1.2.0--->   23 --->FW1
+10.123.0.0---> 123 --->FW1
+172.16.1.0 ---> 172 --->FW1
+
+on FW1=
+1=Port2,3,4 , delete the alias name, and change IP address to 0.0.0.0 0.0.0.0 ----OK (DISABLE ITS)
+***create VLAN 123 Inside***
+Click on Port 5 ---> create New --->interface --->(
+Name=Inside, Type=VLAN,VLAN protocol=802.1Q,Interface=Port5, VALN ID=123,IP/NETMASK=10.123.0.71/24
+Administartion Access = PING,SSH,HTTPS
+DHCP Server=
+DHCP status=enable, Address range=10.123.0.101-10.123.0.254--->ok
+***create VLAN 172 DMZ***
+Click on Port 5 ---> create New --->interface --->(
+Name=DMZ, Type=VLAN,VLAN protocol=802.1Q,Interface=Port5, VALN ID=172,IP/NETMASK=172.16.0.71/24
+Administartion Access = PING,SSH,HTTPS--->ok
+***create VLAN 23 Outside***
+Click on Port 5 ---> create New --->interface --->(
+Name=outside, Type=VLAN,VLAN protocol=802.1Q,Interface=Port5, VALN ID=23,IP/NETMASK=23.1.2.71/24
+Administartion Access = PING,SSH,HTTPS
+--->ok
+
+1:create the following VALNS on FW1:
+network      VALN
+10.2.0.0--->   2
+10.3.0.0--->   3
+10.4.0.0--->   4
+23.1.2.0--->   23 --->FW1
+10.123.0.0---> 123 --->FW1
+172.16.1.0 ---> 172 --->FW1
+2. create Trunk port.
+3:modify R&R(Routing,NAT,Rule) to enable connect with internet
+1: update NAT
+policy & objects --->  Central SNAT ---> (incoming interface=inside, outgoing interface=outside ---> OK)
+2: update secuirty policy
+policy & objects ---> Firewall policy --->click on Inside-to-Outside (modify incoming interface=inside, outgoing interface=outside---> OK)
+3:Modify the routing
+Network ---> Static Route ---> d-click on it ( interface=outside---> OK)
+
+****configuration of SWITCH***
+en 
+conf t 
+vlan 123
+name inside
+exit
+
+vlan 23
+name internet
+exit
+
+vlan 172
+name DMZ
+exit
+
+vlan 99
+name Trunk
+exit
+
+
+interface GigabitEthernet0/1
+ switchport mode access
+ switchport access vlan 23
+ no shutdown
+ exit
+
+interface GigabitEthernet0/2
+ switchport mode access
+ switchport access vlan 123
+ no shutdown
+ exit
+
+interface GigabitEthernet0/3
+ switchport mode access
+ switchport access vlan 123
+ no shutdown
+ exit
+
+interface GigabitEthernet1/0
+ switchport mode access
+ switchport access vlan 172
+ no shutdown
+ exit
+
+interface GigabitEthernet1/1
+ switchport mode access
+ switchport access vlan 172
+ no shutdown
+ exit
+
+interface GigabitEthernet1/2
+switchport mode access
+ switchport access vlan 172
+ no shutdown
+ exit
+
+interface  GigabitEthernet0/0
+switchport mode trunk
+switchport nonegotiate
+switchport trunk native vlan 99
+switchport trunk allowed vlan 123,23,172
+exit
+show vlan brief 
+show interfaces trunk 
+wr
+
+4:testing and verifying the connection on client via 10.123 network
+ping 10.123.0.71
+ping 8.8.8.8
+execute ping 8.8.8.8 
+
+
+###########################################
+firewall policies & secuirty policies (NGFW) depends on Profile-based(Filrewall policy) or Policy-based(Secuirty policy activate NGFW)
+
+in this sceario will work with two modes
+1:change firewall (NGFW) to Secuirty policy mode
+system ---> settings --->under View Settings --->NGFW Mode = Policy-based ---> Apply --->ok
+2:policy &objects ---> Security policy --->create new --->( 
+Name=Simple-inside-to-outside
+incoming interface=port2
+outgoing interface=port4
+source=10 ANYTHING
+destination=all
+service=app Default
+URL Ctaegory= information technology
+action=Accept--->OK
+1:change firewall (NGFW) to Profile-policy mode
+system ---> settings --->under View Settings --->NGFW Mode = Profile-based ---> Apply --->ok
+2:policy &objects ---> Firewall policy --->create new --->( 
+Name=Source example
+incoming interface=port2
+outgoing interface=port4
+source= create ---> address --->( Name=demo machine, Type=Subnet , IP/Subnet=10.123.0.151/32 --->OK)---> drag it in Source
+destination=all
+service=all
+action=Deny
+enable log violation traffic
+enable this policy
+--->OK
+
+***verifying the client***
+ping 8.8.8.8
+ 2:2:policy &objects ---> Security policy --->create new --->( 
+Name=Simple-inside-to-outside
+incoming interface=port2
+outgoing interface=port4
+source=10 ANYTHING
+destination=all
+service=app Default
+URL Ctaegory= information technology
+action=Accept--->OK
+
+2:policy &objects ---> Firewall policy --->create new --->( 
+Name=Allow DNS
+incoming interface=port2(Inside)
+outgoing interface=port4 (Outside)
+source= 10 anything
+destination=all
+service=DNS
+action=Accept
+logging option= log Allowed Traffic = All Sessions
+--->OK
+**move it to the top**
+
+
+
+
